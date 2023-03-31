@@ -30,6 +30,7 @@ case class GenTPCDSDataConfig(
     partitionTables: Boolean = true,
     clusterByPartitionColumns: Boolean = true,
     filterOutNullPartitionValues: Boolean = true,
+    createExternalTables: Boolean = true,
     tableFilter: String = "",
     numPartitions: Int = 100)
 
@@ -77,6 +78,9 @@ object GenTPCDSData {
       opt[Boolean]('v', "filterOutNullPartitionValues")
         .action((x, c) => c.copy(filterOutNullPartitionValues = x))
         .text("true to filter out the partition with NULL key value")
+      opt[Boolean]('r', "createExternalTables")
+        .action((x, c) => c.copy(createExternalTables = x))
+        .text("true to create external tables")
       opt[String]('t', "tableFilter")
         .action((x, c) => c.copy(tableFilter = x))
         .text("\"\" means generate all tables")
@@ -100,6 +104,7 @@ object GenTPCDSData {
       .builder()
       .appName(getClass.getName)
       .master(config.master)
+      .enableHiveSupport()
       .getOrCreate()
 
     val tables = new TPCDSTables(spark.sqlContext,
@@ -117,5 +122,22 @@ object GenTPCDSData {
       filterOutNullPartitionValues = config.filterOutNullPartitionValues,
       tableFilter = config.tableFilter,
       numPartitions = config.numPartitions)
+
+    if (config.createExternalTables) {
+      var databaseName = "tpcds_" + config.format + "_"
+      if (config.partitionTables) {
+        databaseName += "partitioned_"
+      }
+      databaseName += config.scaleFactor + "gb"
+
+      tables.createExternalTables(
+        location = config.location,
+        format = config.format,
+        databaseName,
+        overwrite = config.overwrite,
+        discoverPartitions = true
+      )
+    }
+
   }
 }
